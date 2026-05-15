@@ -1,0 +1,278 @@
+﻿ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timer</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  body {
+    background: #0a0a0a;
+    overflow: hidden;
+    font-family: 'Bebas Neue', sans-serif;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .h-line {
+    position: fixed; left: 0; right: 0; top: 50%;
+    height: 1px; background: rgba(255,255,255,0.07); z-index: 1;
+  }
+
+  .v-line {
+    position: fixed; top: 0; bottom: 50%; left: 50%;
+    width: 1px; background: rgba(255,255,255,0.07); z-index: 1;
+  }
+
+  .blob { position: fixed; border-radius: 50%; filter: blur(100px); opacity: 0.07; pointer-events: none; z-index: 0; }
+  .blob-green  { width: 40vw; height: 40vw; background: #39e86e; top: -10vw; left: -10vw; }
+  .blob-red    { width: 40vw; height: 40vw; background: #e83939; top: -10vw; right: -10vw; }
+  .blob-yellow { width: 60vw; height: 30vw; background: #f0d000; bottom: -5vw; left: 50%; transform: translateX(-50%); }
+
+  .corner {
+    position: fixed;
+    z-index: 2;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  #start-corner {
+    top: 0; left: 0; width: 50%; height: 50%;
+    color: #39e86e;
+    text-shadow: 0 0 40px rgba(57,232,110,0.35);
+    align-items: flex-start;
+    padding: 0 3vmin 3vmin 3vmin;
+  }
+
+  #end-corner {
+    top: 0; right: 0; width: 50%; height: 50%;
+    color: #e83939;
+    text-shadow: 0 0 40px rgba(232,57,57,0.35);
+    align-items: flex-end;
+    padding: 0 3vmin 3vmin 3vmin;
+  }
+
+  #now-corner {
+    bottom: 0; left: 0; width: 100%; height: 50%;
+    color: #f0d000;
+    text-shadow: 0 0 40px rgba(240,208,0,0.35);
+    align-items: center;
+    justify-content: center;
+    padding: 3vmin;
+  }
+
+  .label {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    line-height: 1;
+    margin-bottom: 0.1em;
+    flex-shrink: 0;
+  }
+
+  .time-display {
+    font-family: 'Share Tech Mono', monospace;
+    line-height: 1;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    display: block;
+    flex-shrink: 0;
+  }
+
+  #end-display { text-align: right; }
+  #now-display { text-align: center; cursor: default; }
+
+  .time-display:hover { opacity: 0.75; }
+  #now-display:hover { opacity: 1; }
+
+  .time-input {
+    font-family: 'Share Tech Mono', monospace;
+    line-height: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 0.05em solid currentColor;
+    outline: none;
+    padding: 0;
+    caret-color: currentColor;
+    color: inherit;
+    display: block;
+    width: 5ch;
+  }
+
+  #end-corner .time-input { text-align: right; }
+</style>
+</head>
+<body>
+
+<div class="blob blob-green"></div>
+<div class="blob blob-red"></div>
+<div class="blob blob-yellow"></div>
+<div class="h-line"></div>
+<div class="v-line"></div>
+
+<div class="corner" id="start-corner">
+  <div class="label" id="start-label">Start</div>
+  <span class="time-display" id="start-display" title="Tap to edit">09:00</span>
+</div>
+
+<div class="corner" id="end-corner">
+  <div class="label" id="end-label">End</div>
+  <span class="time-display" id="end-display" title="Tap to edit">17:00</span>
+</div>
+
+<div class="corner" id="now-corner">
+  <div class="label" id="now-label">Now</div>
+  <span class="time-display" id="now-display">00:00:00</span>
+</div>
+
+<script>
+  const FILL = 0.75;
+
+  function fitText(el, maxW, maxH) {
+    let lo = 4, hi = 2000;
+    el.style.fontSize = hi + 'px';
+    while (hi - lo > 0.5) {
+      const mid = (lo + hi) / 2;
+      el.style.fontSize = mid + 'px';
+      if (el.scrollWidth <= maxW && el.scrollHeight <= maxH) lo = mid;
+      else hi = mid;
+    }
+    el.style.fontSize = lo + 'px';
+    return lo;
+  }
+
+  function resize() {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const PAD = Math.min(W, H) * 0.03;
+
+    const halfW = W / 2 - PAD * 2;
+    const halfH = H / 2 - PAD;
+
+    const startSize = fitText(document.getElementById('start-display'), halfW * FILL, halfH * 0.82);
+    const endSize = fitText(document.getElementById('end-display'), halfW * FILL, halfH * 0.82);
+
+    document.getElementById('start-label').style.fontSize = (startSize * 0.25) + 'px';
+    document.getElementById('end-label').style.fontSize = (endSize * 0.25) + 'px';
+
+    const fullW = W - PAD * 2;
+    const nowH = H / 2 - PAD * 2;
+    const nowSize = fitText(document.getElementById('now-display'), fullW * FILL, nowH * 0.82);
+    document.getElementById('now-label').style.fontSize = (nowSize * 0.25) + 'px';
+  }
+
+  document.fonts.ready.then(() => {
+    resize();
+    window.addEventListener('resize', resize);
+  });
+
+  function parseTime(val) {
+    const digits = val.replace(/\D/g, '');
+    if (digits.length !== 4) return null;
+    const h = parseInt(digits.slice(0, 2), 10);
+    const m = parseInt(digits.slice(2, 4), 10);
+    if (h > 23 || m > 59) return null;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  function filterTimeInput(value) {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    let accepted = '';
+
+    for (const digit of digits) {
+      if (accepted.length === 0) {
+        if ('012'.includes(digit)) accepted += digit;
+      } else if (accepted.length === 1) {
+        if (accepted[0] === '2') {
+          if ('0123'.includes(digit)) accepted += digit;
+        } else {
+          accepted += digit;
+        }
+      } else if (accepted.length === 2) {
+        if ('012345'.includes(digit)) accepted += digit;
+      } else if (accepted.length === 3) {
+        accepted += digit;
+      }
+    }
+
+    if (accepted.length <= 2) return accepted;
+    return `${accepted.slice(0, 2)}:${accepted.slice(2)}`;
+  }
+
+  function makeEditable(displayEl) {
+    displayEl.addEventListener('click', () => {
+      const current = displayEl.textContent.trim();
+      const fs = displayEl.style.fontSize;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'time-input';
+      input.style.fontSize = fs;
+      input.maxLength = 5;
+      input.value = current;
+      displayEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      input.addEventListener('input', () => {
+        const nextValue = filterTimeInput(input.value);
+        if (input.value !== nextValue) input.value = nextValue;
+      });
+
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && input.selectionStart === input.selectionEnd && input.selectionStart === 3) {
+          e.preventDefault();
+          input.value = input.value.slice(0, 2);
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+        }
+        if (e.key === 'Escape') {
+          input.replaceWith(displayEl);
+        }
+      });
+
+      function commit() {
+        displayEl.textContent = parseTime(input.value) || current;
+        input.replaceWith(displayEl);
+        resize();
+      }
+
+      input.addEventListener('blur', commit);
+    });
+  }
+
+  makeEditable(document.getElementById('start-display'));
+  makeEditable(document.getElementById('end-display'));
+
+  function tick() {
+    const now = new Date();
+    document.getElementById('now-display').textContent =
+      [now.getHours(), now.getMinutes(), now.getSeconds()]
+        .map(n => String(n).padStart(2, '0')).join(':');
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
